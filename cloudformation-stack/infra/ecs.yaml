@@ -1,0 +1,290 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This template defines the ECS cluster
+
+  Author: Felippe Costa <felippemsc@gmail.com>
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: The environment name that will be prefix of the resources' name
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Select the VPC ID where the cluster will be deployed
+
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The selected VPC subnets
+
+  InstanceType:
+    Type: String
+    Description: EC2 instance type to be used in the cluster
+    Default: t3.micro
+    AllowedValues:
+    - t3.nano
+    - t3.micro
+    - t3.small
+    - t3.medium
+    - t3.large
+    - t3.xlarge
+    - t3.2xlarge
+    - m5.large
+    - m5.xlarge
+    - m5.2xlarge
+    - m5.4xlarge
+    - m5.12xlarge
+    - m5.24xlarge
+    - m5d.large
+    - m5d.xlarge
+    - m5d.2xlarge
+    - m5d.4xlarge
+    - m5d.12xlarge
+    - m5d.24xlarge
+    - c5.large
+    - c5.xlarge
+    - c5.2xlarge
+    - c5.4xlarge
+    - c5.9xlarge
+    - c5.18xlarge
+    - c5d.large
+    - c5d.xlarge
+    - c5d.2xlarge
+    - c5d.4xlarge
+    - c5d.9xlarge
+    - c5d.18xlarge
+    ConstraintDescription: Select a valid instance type.
+
+  KeyPair:
+    Type: String
+    Description: The KeyPair name for the EC2 hosts
+
+  DesiredCapacity:
+    Type: Number
+    Description: Number of initial hosts
+
+  MaxSize:
+    Type: Number
+    Description: Maximum number of hosts in the cluster
+    Default: 8
+
+  SecurityGroup:
+    Type: String
+    Description: Selects the SecurityGroup to use on ECS hosts
+
+Mappings:
+  AWSRegionToAMI:
+    us-east-1:
+      AMI: ami-00129b193dc81bc31
+    us-east-2:
+      AMI: ami-028a9de0a7e353ed9
+    us-west-1:
+      AMI: ami-6b81980b
+    us-west-3:
+      AMI: ami-07da674f0655ef4e1
+    us-west-2:
+      AMI: ami-00d4f478
+    eu-west-1:
+      AMI: ami-0d438d09af26c9583
+    eu-central-1:
+      AMI: ami-0291ba887ba0d515f
+    ap-northeast-1:
+      AMI: ami-0041c416aa23033a2
+    ap-northeast-2:
+      AMI: ami-047d2a61f94f862dc
+    ap-southeast-1:
+      AMI: ami-091bf462afdb02c60
+    ap-southeast-2:
+      AMI: ami-bc04d5de
+    ca-central-1:
+      AMI: ami-192fa27d
+    ap-south-1:
+      AMI: ami-0c179ca015d301829
+    sa-east-1:
+      AMI: ami-0018ff8ee48970ac3
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref EnvironmentName
+
+  ECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      RoleName: !Sub ${EnvironmentName}-ECSRole-${AWS::Region}
+      AssumeRolePolicyDocument: |
+        {
+          "Statement": [{
+            "Action": "sts:AssumeRole",
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "ec2.amazonaws.com"
+            }
+          }]
+        }
+      Policies:
+        - PolicyName: ecs-service
+          PolicyDocument: |
+            {
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                  "cloudwatch:PutMetricData",
+                  "ec2:DescribeInstanceStatus",
+                  "ec2messages:AcknowledgeMessage",
+                  "ec2messages:DeleteMessage",
+                  "ec2messages:FailMessage",
+                  "ec2messages:GetEndpoint",
+                  "ec2messages:GetMessages",
+                  "ec2messages:SendReply",
+                  "ecs:CreateCluster",
+                  "ecs:DeregisterContainerInstance",
+                  "ecs:DiscoverPollEndpoint",
+                  "ecs:Poll",
+                  "ecs:RegisterContainerInstance",
+                  "ecs:StartTelemetrySession",
+                  "ecs:Submit*",
+                  "ecr:BatchCheckLayerAvailability",
+                  "ecr:BatchGetImage",
+                  "ecr:GetDownloadUrlForLayer",
+                  "ecr:GetAuthorizationToken",
+                  "ds:CreateComputer",
+                  "ds:DescribeDirectories",
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents",
+                  "logs:CreateLogGroup",
+                  "logs:CreateLogStream",
+                  "logs:DescribeLogGroups",
+                  "logs:DescribeLogStreams",
+                  "logs:PutLogEvents",
+                  "ssm:DescribeAssociation",
+                  "ssm:GetDeployablePatchSnapshotForInstance",
+                  "ssm:GetDocument",
+                  "ssm:GetManifest",
+                  "ssm:GetParameters",
+                  "ssm:ListAssociations",
+                  "ssm:ListInstanceAssociations",
+                  "ssm:PutInventory",
+                  "ssm:PutComplianceItems",
+                  "ssm:PutConfigurePackageResult",
+                  "ssm:UpdateAssociationStatus",
+                  "ssm:UpdateInstanceAssociationStatus",
+                  "ssm:UpdateInstanceInformation"
+                ],
+                "Resource": "*"
+              }]
+            }
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref ECSRole
+
+  ECSServiceAutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Action:
+          - 'sts:AssumeRole'
+          Effect: Allow
+          Principal:
+            Service:
+            - application-autoscaling.amazonaws.com
+      Path: /
+      Policies:
+      - PolicyName: ecs-service-autoscaling
+        PolicyDocument:
+          Statement:
+            Effect: Allow
+            Action:
+            - application-autoscaling:*
+            - cloudwatch:DescribeAlarms
+            - cloudwatch:PutMetricAlarm
+            - ecs:DescribeServices
+            - ecs:UpdateService
+            Resource: "*"
+
+  ECSAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref Subnets
+      LaunchConfigurationName: !Ref ECSLaunchConfiguration
+      MinSize: 1
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
+      Tags:
+      - Key: Name
+        Value: !Ref EnvironmentName
+        PropagateAtLaunch: 'true'
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: 'true'
+
+  ECSLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMI]
+      SecurityGroups: [!Ref SecurityGroup]
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPair
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          yum update -y
+          yum install -y aws-cfn-bootstrap
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          commands:
+            01_add_instance_to_cluster:
+              command: !Sub echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          files:
+            "/etc/cfn/cfn-hup.conf":
+              mode: 000400
+              owner: root
+              group: root
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.ContainerInstances.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource ECSLaunchConfiguration
+
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                - /etc/cfn/cfn-hup.conf
+                - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+
+Outputs:
+  Cluster:
+    Description: A reference for the ECS cluster
+    Value: !Ref ECSCluster
+
+  ECSServiceAutoScalingRole:
+    Description: A reference for the role of the ECS Autoscaling
+    Value: !GetAtt ECSServiceAutoScalingRole.Arn
+
+  ECSAutoScalingGroupName:
+    Description: A reference for the ECS AutoscalingGroup
+    Value: !Ref ECSAutoScalingGroup

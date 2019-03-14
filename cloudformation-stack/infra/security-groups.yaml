@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Template defines the security groups that will be used to regulate the access of the infra resources
+
+  Autor: Felippe Costa <felippemsc@gmail.com>
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: The environment name that will be prefix of the resources' name
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC where Security Groups will be implemented
+
+Resources:
+  # This Security Group defines the protocols and IP's intervals allowed to access the ECS instance directly.
+  ECSHostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+          GroupDescription: Access to the ECS hosts and the containers that are running on it
+      SecurityGroupIngress:
+        - Description: VIVO
+          IpProtocol: -1
+          CidrIp: 177.17.35.126
+          FromPort: 22
+          ToPort: 22
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ECS-Hosts
+
+  # This Security Group defines the protocols and IP's intervals allowed to access the Application Load Balancer.
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Access to the Load Balancer
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-LoadBalancers
+
+  ECSAccessGrant:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Gives access to the ECS Cluster
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref ECSHostSecurityGroup
+          IpProtocol: -1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ECS Cluster Access
+
+Outputs:
+
+  ECSHostSecurityGroup:
+    Description: SecurityGroup for the ECS hosts
+    Value: !Ref ECSHostSecurityGroup
+
+  LoadBalancerSecurityGroup:
+    Description: SecurityGroup for the Load Balancers
+    Value: !Ref LoadBalancerSecurityGroup
+
+  ECSAccessGrant:
+    Description: Gives access to the ECS Cluster
+    Value: !Ref ECSAccessGrant

@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This template defines the Application LoadBalancer.
+
+  Author: Felippe Costa <felippemsc@gmail.com>
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    Description: The environment that will be prefixed to resource names
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Select the VPC ID where the cluster will be deployed
+
+  PublicSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The public subnets of the VPC selected for the public LB
+
+  SecurityGroup:
+    Type: String
+    Description: Selects the SecurityGroup to use on ECS hosts
+
+Resources:
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Subnets: !Ref PublicSubnets
+      SecurityGroups:
+        - !Ref SecurityGroup
+
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+
+  # TargetGroup padrao.
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+
+Outputs:
+
+  PublicLoadBalancer:
+    Description: Application Load Balancer Reference
+    Value: !Ref LoadBalancer
+
+  PublicLoadBalancerUrl:
+    Description: The Application Load Balancer URL
+    Value: !GetAtt LoadBalancer.DNSName
+
+  Listener:
+    Description: Reference to the default Listener
+    Value: !Ref LoadBalancerListener

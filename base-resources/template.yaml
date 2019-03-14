@@ -1,0 +1,108 @@
+Description: >
+  This template creates the base resources that allows deploying the stack of Jenkins.
+  Resources:
+  - S3 Bucket to store the stack template
+  - ECR Repositories to store project
+  - IAM Managed Policy that allows pushing docker images to ECR
+  - IAM Managed Policy that allows creating and uploading cloudformation stacks.
+
+  Author: Felippe Costa <felippemsc@gmail.com>
+
+Resources:
+  jenkinsBucket:
+    Type: AWS::S3::Bucket
+
+  jenkinsRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: jenkins_repository
+      LifecyclePolicy:
+        LifecyclePolicyText: "{\"rules\": [{\"rulePriority\": 10, \"description\": \"Only keep 2 images\", \"selection\": {\"countType\": \"imageCountMoreThan\", \"countNumber\": 2, \"tagStatus\": \"any\"}, \"action\": {\"type\": \"expire\"}}]}"
+
+  jenkinsPolicyImageUploader:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: "Allows to upload the docker image to the repositories"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Action:
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:GetDownloadUrlForLayer"
+              - "ecr:GetRepositoryPolicy"
+              - "ecr:DescribeRepositories"
+              - "ecr:ListImages"
+              - "ecr:DescribeImages"
+              - "ecr:BatchGetImage"
+              - "ecr:InitiateLayerUpload"
+              - "ecr:UploadLayerPart"
+              - "ecr:CompleteLayerUpload"
+              - "ecr:PutImage"
+            Resource: "*"
+          -
+            Effect: "Allow"
+            Action:
+              - "ecr:GetAuthorizationToken"
+            Resource: "*"
+
+  jenkinsPolicyStackUpdater:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: "Allows to create and update the cloudformation stacks"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Action:
+              - "s3:*"
+              - "cloudformation:*"
+              - "ecs:*"
+              - "iam:*"
+              - "logs:*"
+              - "security-group:*"
+              - "ec2:*"
+              - "vpc:*"
+              - "internet-gateway:*"
+              - "launch-template:*"
+              - "elasticloadbalancing:*"
+              - "autoscaling:*"
+              - "ssm:*"
+              - "rds:*"
+              - "elasticache:*"
+            Resource: "*"
+
+  jenkinsGroupDeployer:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: jenkinsGroupDeployer
+      ManagedPolicyArns:
+        - !Ref "jenkinsPolicyImageUploader"
+        - !Ref "jenkinsPolicyStackUpdater"
+
+Outputs:
+  CFNBucket:
+    Description: Bucket that stores the CloudFormation template
+    Value: !Ref jenkinsBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-CFNBucket"
+
+  jenkinsRepo:
+    Description: The Container Repository for the Service
+    Value: !Ref jenkinsRepo
+    Export:
+      Name: !Sub "${AWS::StackName}-Repository"
+
+  jenkinsPolicyStackUpdater:
+    Description: Access policy that allows to upload the images
+    Value: !Ref jenkinsPolicyStackUpdater
+    Export:
+      Name: jenkinsPolicyStackUpdater
+
+  jenkinsGroupDeployer:
+    Description: Group of users the can push the images and create and update the CloudFormation stacks
+    Value: !Ref jenkinsGroupDeployer
+    Export:
+      Name: jenkinsGroupDeployer

@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This template deploys a Jenkins project
+
+  Author: Felippe Costa <felippemsc@gmail.com>
+
+Parameters:
+  ECSClusterInstanceType:
+    Description: Name of the instance class for the EC2 machine running the cluster.
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.nano
+    - t2.micro
+    - t2.small
+    - t2.medium
+    - t2.large
+    - t2.xlarge
+    - t3.nano
+    - t3.micro
+    - t3.small
+    - t3.medium
+    - t3.large
+    - t3.xlarge
+    - t3.2xlarge
+    - m5.large
+    - m5.xlarge
+    - m5.2xlarge
+    - m5.4xlarge
+    - m5.12xlarge
+    - m5.24xlarge
+    - m5d.large
+    - m5d.xlarge
+    - m5d.2xlarge
+    - m5d.4xlarge
+    - m5d.12xlarge
+    - m5d.24xlarge
+    - c5.large
+    - c5.xlarge
+    - c5.2xlarge
+    - c5.4xlarge
+    - c5.9xlarge
+    - c5.18xlarge
+    - c5d.large
+    - c5d.xlarge
+    - c5d.2xlarge
+    - c5d.4xlarge
+    - c5d.9xlarge
+    - c5d.18xlarge
+
+  JenkinsImageTag:
+    Type: String
+    Description: Imate tag for the Jenkins deploy O tag da imagem para o deploy do Conta Corrente
+
+  # CRIAR VPC E PUBLIC AND PRIVATE SUBNET
+  VPCId:
+    Type: String
+    Description: A VPC onde serao implantados os Security Groups
+    Default: "vpc-6bedf50f"
+
+  PublicSubnets:
+    Type: String
+    Description: As subnets públicas (Da VPC selecionada)
+    Default: "subnet-3e622a03,subnet-28084c5e"
+
+  PrivateSubnets:
+    Type: String
+    Description: As subnets públicas (Da VPC selecionada)
+    Default: "subnet-20622a1d,subnet-f2084c84"
+
+Resources:
+  SecurityGroups:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !ImportValue my-infra-CFNBucket, "infra/security-groups.yaml"]]
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+#        VPC: !Ref VPCId
+
+  ECS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !ImportValue my-infra-CFNBucket, "infra/ECS.yaml"]]
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        InstanceType: !Ref ECSClusterInstanceType
+        DesiredCapacity: 1
+#        KeyPair: hml_contacorrente  # CHANGE KEY PAIR
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+#        Subnets: !Ref PrivateSubnets
+#        VPC: !Ref VPCId
+
+  ApplicationLoadBalancer:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !ImportValue my-infra-CFNBucket, "infra/load-balancers.yaml"]]
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
+#        PublicSubnets: !Ref PublicSubnets
+#        VPC: !Ref VPCId
+
+  ServicoNewRelic:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !ImportValue my-infra-CFNBucket, "service/new_relic.yaml"]]
+      Parameters:
+        Cluster: !GetAtt ECS.Outputs.Cluster
+        DesiredCount: 1
+
+Outputs:
+  # Networking Outputs
+  VPC:
+    Description: Uma referencia à nova VPC
+    Value: !Ref VPCId
+
+  #LoadBalancer Outputs
+  PublicLoadBalancerUrl:
+    Description: A URL do Application Load Balancer
+    Value: !GetAtt ApplicationLoadBalancer.Outputs.PublicLoadBalancerUrl

@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  This template defines the Jenkins Service
+
+  Author: Felippe Costa <felippemsc@gmail.com>
+
+Parameters:
+  Cluster:
+    Description: Cluster where the service should be implanted
+    Type: String
+
+  DesiredCount:
+    Description: Desired number of containers for this service
+    Type: Number
+    Default: 1
+
+  ContainerRepository:
+    Description: The repository for the Jenkins Container
+    Type: String
+
+  ContainerImageTag:
+    Description: The image tag for the deploy
+    Type: String
+
+Resources:
+
+  JenkinsService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref Cluster
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref JenkinsTask
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+
+  JenkinsTask:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+      - Name: jenkins-infra
+        Essential: true
+        Image: !Join ['', [!Ref 'AWS::AccountId', .dkr.ecr., !Ref 'AWS::Region' , .amazonaws.com/, !Ref ContainerRepository, ':', !Ref ContainerImageTag]]
+        MemoryReservation: 256
+        MountPoints:
+          - SourceVolume: "jenkins-home"
+            ContainerPath: "/var/jenkins_home"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref JenkinsCloudwatchLogsGroup
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: jenkins
+      Volumes:
+      - Host:
+          SourcePath: "/jenkins_home"
+        Name: "jenkins-home"
+
+  JenkinsCloudwatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
+
+  PolicyJenkinsServiceUpdater:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: "Allows to update the jenkins service"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Action:
+          - "application-autoscaling:Describe*"
+          - "application-autoscaling:PutScalingPolicy"
+          - "application-autoscaling:DeleteScalingPolicy"
+          - "application-autoscaling:RegisterScalableTarget"
+          - "cloudwatch:DescribeAlarms"
+          - "cloudwatch:PutMetricAlarm"
+          - "ecs:List*"
+          - "ecs:Describe*"
+          - "ecs:UpdateService"
+          - "iam:AttachRolePolicy"
+          - "iam:CreateRole"
+          - "iam:GetPolicy"
+          - "iam:GetPolicyVersion"
+          - "iam:GetRole"
+          - "iam:ListAttachedRolePolicies"
+          - "iam:ListRoles"
+          - "iam:ListGroups"
+          - "iam:ListUsers"
+          Resource: "*"
+
+  GroupJenkinsServiceUpdater:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Sub JenkinsServiceUpdaters-${AWS::StackName}
+      ManagedPolicyArns:
+        - !Ref "PolicyJenkinsServiceUpdater"
+
+Outputs:
+  ServiceUpdaterGroup:
+    Description: Group that allows to update the jenkins service
+    Value: !Ref GroupJenkinsServiceUpdater
