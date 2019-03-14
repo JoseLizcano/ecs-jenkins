@@ -1,0 +1,26 @@
+[
+  {
+    "ParameterKey": "ECSClusterInstanceType",
+    "ParameterValue": "t2.micro"
+  },
+  {
+    "ParameterKey": "JenkinsImageTag",
+    "ParameterValue": "image"
+  },
+  {
+    "ParameterKey": "JenkinsRepository",
+    "ParameterValue": "jenkins_repository"
+  },
+  {
+    "ParameterKey": "VPCId",
+    "ParameterValue": "testid"
+  },
+  {
+    "ParameterKey": "PublicSubnets",
+    "ParameterValue": "testid"
+  },
+  {
+    "ParameterKey": "PrivateSubnets",
+    "ParameterValue": "testid"
+  }
+]

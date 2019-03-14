@@ -22,14 +22,23 @@ Parameters:
     Description: The image tag for the deploy
     Type: String
 
+  Listener:
+    Description: The Application LoadBalancer listener
+    Type: String
+
 Resources:
 
   JenkinsService:
     Type: AWS::ECS::Service
+    DependsOn: ListenerRuleJenkins
     Properties:
       Cluster: !Ref Cluster
       DesiredCount: !Ref DesiredCount
       TaskDefinition: !Ref JenkinsTask
+      LoadBalancers:
+      - ContainerName: my-jenkins
+        ContainerPort: 8080
+        TargetGroupArn: !Ref TargetGroupJenkins
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 100
@@ -38,7 +47,7 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       ContainerDefinitions:
-      - Name: jenkins-infra
+      - Name: my-jenkins
         Essential: true
         Image: !Join ['', [!Ref 'AWS::AccountId', .dkr.ecr., !Ref 'AWS::Region' , .amazonaws.com/, !Ref ContainerRepository, ':', !Ref ContainerImageTag]]
         MemoryReservation: 256
@@ -60,6 +69,32 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: 30
+
+  TargetGroupJenkins:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+
+  ListenerRuleJenkins:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Conditions:
+      - Field: path-pattern
+        Values:
+        - '/'
+      Actions:
+      - TargetGroupArn: !Ref TargetGroupContaJenkins
+        Type: forward
 
   PolicyJenkinsServiceUpdater:
     Type: AWS::IAM::ManagedPolicy
