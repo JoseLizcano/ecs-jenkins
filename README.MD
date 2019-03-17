@@ -2,7 +2,6 @@
 https://github.com/aws-samples/ecs-refarch-cloudformation
 
 # TODO:
-* Correct the Task Definition (Permission Denied for Volume)
 * Change the Makefile to create different JENKINS_IMAGE
 * Change the Makefile to name the AWS_BUCKET
 * TEST

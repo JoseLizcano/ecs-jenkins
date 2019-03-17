@@ -52,6 +52,7 @@ Resources:
     Properties:
       ContainerDefinitions:
       - Name: my-jenkins
+        User: root
         Essential: true
         Image: !Join ['', [!Ref 'AWS::AccountId', .dkr.ecr., !Ref 'AWS::Region' , .amazonaws.com/, !Ref ContainerRepository, ':', !Ref ContainerImageTag]]
         MemoryReservation: 256
