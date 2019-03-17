@@ -26,6 +26,10 @@ Parameters:
     Description: The Application LoadBalancer listener
     Type: String
 
+  VPC:
+    Description: A VPC onde o Cluster ECS está implantado
+    Type: AWS::EC2::VPC::Id
+
 Resources:
 
   JenkinsService:
@@ -51,6 +55,8 @@ Resources:
         Essential: true
         Image: !Join ['', [!Ref 'AWS::AccountId', .dkr.ecr., !Ref 'AWS::Region' , .amazonaws.com/, !Ref ContainerRepository, ':', !Ref ContainerImageTag]]
         MemoryReservation: 256
+        Privileged: true
+        ReadonlyRootFilesystem: false
         MountPoints:
           - SourceVolume: "jenkins-home"
             ContainerPath: "/var/jenkins_home"
@@ -60,10 +66,17 @@ Resources:
             awslogs-group: !Ref JenkinsCloudwatchLogsGroup
             awslogs-region: !Ref 'AWS::Region'
             awslogs-stream-prefix: jenkins
+        PortMappings:
+          - ContainerPort: 8080
+          - ContainerPort: 50000
       Volumes:
       - Host:
           SourcePath: "/jenkins_home"
         Name: "jenkins-home"
+#      - DockerVolumeConfiguration:
+#          Autoprovision: true
+#          Scope: shared
+#          Driver: "/var/jenkins_home"
 
   JenkinsCloudwatchLogsGroup:
     Type: AWS::Logs::LogGroup
@@ -93,8 +106,9 @@ Resources:
         Values:
         - '/'
       Actions:
-      - TargetGroupArn: !Ref TargetGroupContaJenkins
+      - TargetGroupArn: !Ref TargetGroupJenkins
         Type: forward
+      Priority: 1
 
   PolicyJenkinsServiceUpdater:
     Type: AWS::IAM::ManagedPolicy

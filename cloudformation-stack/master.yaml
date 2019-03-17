@@ -56,67 +56,68 @@ Parameters:
     Type: String
     Description: Jenkins repositoy name
 
-  VPCId:
+  BucketName:
     Type: String
-    Description: The VPC where the Security Groups will be implated
-
-  PublicSubnets:
-    Type: String
-    Description: The public subnets of the selected VPC
-
-  PrivateSubnets:
-    Type: String
-    Description: The private subnets of the selected VPC
+    Description: The name of the Bucket created with the base resources
 
 Resources:
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${BucketName}/infra/vpc.yaml"
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VpcCIDR: 10.180.0.0/16
+        PublicSubnet1CIDR: 10.180.8.0/21
+        PublicSubnet2CIDR: 10.180.16.0/21
+        PrivateSubnet1CIDR: 10.180.24.0/21
+        PrivateSubnet2CIDR: 10.180.32.0/21
+
   SecurityGroups:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !ImportValue my-infra-CFNBucket, "infra/security-groups.yaml"]]
+      #!ImportValue my-jenkins-infra-CFNBucket
+      TemplateURL: !Sub "https://s3.amazonaws.com/${BucketName}/infra/security-groups.yaml"
       Parameters:
         EnvironmentName: !Ref AWS::StackName
-        VPC: !Ref VPCId
+        VPC: !GetAtt VPC.Outputs.VPC
 
   ECS:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !ImportValue my-infra-CFNBucket, "infra/ECS.yaml"]]
+      TemplateURL: !Sub "https://s3.amazonaws.com/${BucketName}/infra/ecs.yaml"
       Parameters:
         EnvironmentName: !Ref AWS::StackName
         InstanceType: !Ref ECSClusterInstanceType
         DesiredCapacity: 1
-        KeyPair: my-keypair
+        KeyPair: my-key-pair
         SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
-        Subnets: !Ref PrivateSubnets
-        VPC: !Ref VPCId
+        Subnets: !GetAtt VPC.Outputs.PrivateSubnets
+        VPC: !GetAtt VPC.Outputs.VPC
 
   ApplicationLoadBalancer:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !ImportValue my-infra-CFNBucket, "infra/load-balancers.yaml"]]
+      TemplateURL: !Sub "https://s3.amazonaws.com/${BucketName}/infra/load-balancers.yaml"
       Parameters:
         EnvironmentName: !Ref AWS::StackName
         SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
-        PublicSubnets: !Ref PublicSubnets
-        VPC: !Ref VPCId
+        PublicSubnets: !GetAtt VPC.Outputs.PublicSubnets
+        VPC: !GetAtt VPC.Outputs.VPC
 
-  ServicoNewRelic:
+  JenkinsService:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Join ["/", ["https://s3.amazonaws.com", !ImportValue my-infra-CFNBucket, "service/jenkins.yaml"]]
+      TemplateURL: !Sub "https://s3.amazonaws.com/${BucketName}/service/jenkins.yaml"
       Parameters:
         Cluster: !GetAtt ECS.Outputs.Cluster
         DesiredCount: 1
         ContainerRepository: !Ref JenkinsRepository
-        ContainerImageTag: !Ref JenkinsRepository
+        ContainerImageTag: !Ref JenkinsImageTag
         Listener: !GetAtt ApplicationLoadBalancer.Outputs.Listener
+        VPC: !GetAtt VPC.Outputs.VPC
 
 Outputs:
-  # Networking Outputs
-  VPC:
-    Description: Uma referencia à nova VPC
-    Value: !Ref VPCId
-
   #LoadBalancer Outputs
   PublicLoadBalancerUrl:
     Description: A URL do Application Load Balancer

@@ -19,13 +19,16 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       VpcId: !Ref VPC
-          GroupDescription: Access to the ECS hosts and the containers that are running on it
+      GroupDescription: Access to the ECS hosts and the containers that are running on it
       SecurityGroupIngress:
-        - Description: VIVO
+        - CidrIp: 0.0.0.0/0
           IpProtocol: -1
-          CidrIp: 177.17.35.126
-          FromPort: 22
-          ToPort: 22
+          # CHANGE THE IP ADDRESS
+#        - Description: XYZ
+#          IpProtocol: -1
+#          CidrIp: 127.0.0.1/0
+#          FromPort: 22
+#          ToPort: 22
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-ECS-Hosts
